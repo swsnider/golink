@@ -3,11 +3,10 @@ package golink
 import (
 	"bytes"
 	"io"
-	"time"
-	//  "code.google.com/p/go-etree"
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 )
 
 type nopCloser struct {
@@ -63,10 +62,10 @@ func TestGet(t *testing.T) {
 		t.Error("Incorrect attribute parsing.")
 	}
 	if a.lastCachedUntil.Unix() != 1258563931 {
-		t.Error("Incorrect cachedUntil. Got %v", a.lastCachedUntil)
+		t.Errorf("Incorrect cachedUntil. Got %v", a.lastCachedUntil)
 	}
 	if a.lastCurrentTime.Unix() != 1255885531 {
-		t.Error("Incorrect currentTime. Got %v", a.lastCurrentTime)
+		t.Errorf("Incorrect currentTime. Got %v", a.lastCurrentTime)
 	}
 }
 
@@ -86,10 +85,10 @@ func TestGetCached(t *testing.T) {
 		t.Error("Incorrect attribute parsing.")
 	}
 	if a.lastCachedUntil.Unix() != 1258563931 {
-		t.Error("Incorrect cachedUntil. Got %v", a.lastCachedUntil)
+		t.Errorf("Incorrect cachedUntil. Got %v", a.lastCachedUntil)
 	}
 	if a.lastCurrentTime.Unix() != 1255885531 {
-		t.Error("Incorrect currentTime. Got %v", a.lastCurrentTime)
+		t.Errorf("Incorrect currentTime. Got %v", a.lastCurrentTime)
 	}
 }
 
