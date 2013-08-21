@@ -1,7 +1,8 @@
 package golink
 
 import (
-	"encoding/xml"
+	"bytes"
+	"code.google.com/p/go-etree"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -10,11 +11,46 @@ import (
 	"time"
 )
 
+type APIFetcher interface {
+  Get(path string, params url.Values, c *APICredentials) (etree.Element, error)
+}
+
 type API struct {
-	BaseURL, KeyID, VCode            string
+	BaseURL                          string
 	Cache                            APICache
 	lastCachedUntil, lastCurrentTime time.Time
 	Client                           URLFetcher
+}
+
+type CredentialedAPI struct {
+  api APIFetcher
+  credentials APICredentials
+}
+
+// Returns a new API object, filling in defaults as needed.
+func NewAPI(base string, c APICache, uf URLFetcher) *API {
+	if base == "" {
+		base = "api.eveonline.com"
+	}
+	if c == nil {
+		c = make(InMemoryAPICache)
+	}
+	if uf == nil {
+		uf = http.PostForm
+	}
+	return &API{BaseURL: base, Cache: c, Client: uf}
+}
+
+func NewCredentialedAPI(a APIFetcher, c APICredentials) *CredentialedAPI {
+  return &CredentialedAPI{api: a, credentials: c}
+}
+
+func (a *CredentialedAPI) Get(path string, params url.Values) (etree.Element, error) {
+  return a.api.Get(path, params, &a.credentials)
+}
+
+type APICredentials struct {
+	KeyID, VCode string
 }
 
 type URLFetcher func(path string, params url.Values) (result *http.Response, err error)
@@ -47,27 +83,11 @@ func (c InMemoryAPICache) Put(k string, v []byte, duration time.Duration) {
 	c[k] = &InMemoryCacheValue{V: v, Expiration: time.Now().Add(duration)}
 }
 
-type EveError struct {
-	Msg  string `xml:"chardata"`
-	Code string `xml:"code,attr"`
-}
-
-type GenericAPIResponse struct {
-	Result      []byte   `xml:"result,innerxml"`
-	CurrentTime string   `xml:"currentTime"`
-	CachedUntil string   `xml:"cachedUntil"`
-	Error       EveError `xml:"error"`
-}
-
-func NewAPI() *API {
-	return &API{}
-}
-
 //Request a specific path from the EVE API.
-func (a *API) Get(path string, params url.Values) ([]byte, error) {
-	if a.KeyID != "" {
-		params["keyID"] = []string{a.KeyID}
-		params["vCode"] = []string{a.VCode}
+func (a *API) Get(path string, params url.Values, c *APICredentials) (etree.Element, error) {
+	if c != nil {
+		params["keyID"] = []string{c.KeyID}
+		params["vCode"] = []string{c.VCode}
 	}
 	cacheKey := genCacheKey(path, params)
 	response := a.Cache.Get(cacheKey)
@@ -84,17 +104,25 @@ func (a *API) Get(path string, params url.Values) ([]byte, error) {
 		}
 	}
 
-	xmlResponse := GenericAPIResponse{}
-	err := xml.Unmarshal(response, &xmlResponse)
+	tree, err := etree.Parse(bytes.NewBuffer(response))
 	if err != nil {
 		return nil, err
 	}
-	currentTime, err := parseEveTs(xmlResponse.CurrentTime)
+	tree = tree.Find("eveapi")
+	elem := tree.Find("currentTime")
+	if elem == nil {
+		return nil, fmt.Errorf("Unable to parse currentTime.")
+	}
+	currentTime, err := parseEveTs(elem.Text())
 	if err != nil {
 		return nil, err
 	}
 	a.lastCurrentTime = currentTime
-	expiresTime, err := parseEveTs(xmlResponse.CachedUntil)
+	elem = tree.Find("cachedUntil")
+	if elem == nil {
+		return nil, fmt.Errorf("Unable to parse cachedUntil.")
+	}
+	expiresTime, err := parseEveTs(elem.Text())
 	if err != nil {
 		return nil, err
 	}
@@ -104,11 +132,13 @@ func (a *API) Get(path string, params url.Values) ([]byte, error) {
 		a.Cache.Put(cacheKey, response, expiresTime.Sub(currentTime))
 	}
 
-	if xmlResponse.Error.Code != "" {
-		return nil, fmt.Errorf("API reported error with code %v and message \"%v\"", xmlResponse.Error.Code, xmlResponse.Error.Msg)
+	xmlErr := tree.Find("error")
+	if xmlErr != nil {
+		code, _ := xmlErr.Get("code")
+		return nil, fmt.Errorf("API reported error with code %v and message \"%v\"", code, xmlErr.Text())
 	}
 
-	return xmlResponse.Result, nil
+	return tree.Find("result"), nil
 }
 
 func genCacheKey(path string, params url.Values) string {
@@ -118,8 +148,4 @@ func genCacheKey(path string, params url.Values) string {
 	}
 	sort.StringSlice(ks).Sort()
 	return fmt.Sprintf("%v#%v", path, ks)
-}
-
-func parseEveTs(in string) (time.Time, error) {
-	return time.Parse("2006-01-02 15:04:05", in)
 }
