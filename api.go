@@ -12,7 +12,7 @@ import (
 )
 
 type APIFetcher interface {
-  Get(path string, params url.Values, c *APICredentials) (etree.Element, error)
+	Get(path string, params url.Values, c *APICredentials) (etree.Element, error)
 }
 
 type API struct {
@@ -23,8 +23,8 @@ type API struct {
 }
 
 type CredentialedAPI struct {
-  api APIFetcher
-  credentials APICredentials
+	api         APIFetcher
+	credentials APICredentials
 }
 
 // Returns a new API object, filling in defaults as needed.
@@ -42,11 +42,11 @@ func NewAPI(base string, c APICache, uf URLFetcher) *API {
 }
 
 func NewCredentialedAPI(a APIFetcher, c APICredentials) *CredentialedAPI {
-  return &CredentialedAPI{api: a, credentials: c}
+	return &CredentialedAPI{api: a, credentials: c}
 }
 
 func (a *CredentialedAPI) Get(path string, params url.Values) (etree.Element, error) {
-  return a.api.Get(path, params, &a.credentials)
+	return a.api.Get(path, params, &a.credentials)
 }
 
 type APICredentials struct {
