@@ -1,8 +1,8 @@
 package golink
 
 import (
-	"fmt"
 	"encoding/xml"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -14,7 +14,7 @@ type API struct {
 	BaseURL, KeyID, VCode            string
 	Cache                            APICache
 	lastCachedUntil, lastCurrentTime time.Time
-	Client URLFetcher
+	Client                           URLFetcher
 }
 
 type URLFetcher func(path string, params url.Values) (result *http.Response, err error)
