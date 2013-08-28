@@ -1,8 +1,8 @@
 package golink
 
 import (
-	//	"fmt"
 	"code.google.com/p/go-etree"
+	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -15,7 +15,7 @@ type cAsset struct {
 }
 
 func handleAssetRowset(rowset etree.Element, locId int64) ([]cAsset, error) {
-	ret := make([]cAsset, 0)
+	var ret []cAsset
 	var err error
 	for _, row := range rowset.FindAll("row") {
 		asset := cAsset{}
@@ -73,7 +73,7 @@ func (a *CredentialedAPI) CharContractBids(charId int64) ([]cContractBid, error)
 	if rowset == nil {
 		return nil, err
 	}
-	r := make([]cContractBid, 0)
+	var r []cContractBid
 	for _, row := range rowset.FindAll("row") {
 		c := cContractBid{}
 		if c.Id, err = strconv.ParseInt(first(row.Get("bidID")), 0, 64); err != nil {
@@ -90,6 +90,53 @@ func (a *CredentialedAPI) CharContractBids(charId int64) ([]cContractBid, error)
 		}
 		if c.Timestamp, err = parseEveTs(first(row.Get("dateBid"))); err != nil {
 			return nil, err
+		}
+		r = append(r, c)
+	}
+	return r, nil
+}
+
+type cContractItem struct {
+	Id, TypeId, Quantity, RawQuantity int64
+	Action                            string
+	Singleton                         bool
+}
+
+func (a *CredentialedAPI) CharContractItems(charId int64, contractId int64) ([]cContractItem, error) {
+	result, err := a.Get("char/ContractItems", url.Values{"characterID": []string{string(charId)}, "contractId": []string{string(contractId)}})
+	if err != nil {
+		return nil, err
+	}
+	rowset := result.Find("rowset")
+	if rowset == nil {
+		return nil, err
+	}
+	var r []cContractItem
+	var temp string
+	var ok bool
+	for _, row := range rowset.FindAll("row") {
+		c := cContractItem{}
+		if c.Id, err = strconv.ParseInt(first(row.Get("recordId")), 0, 64); err != nil {
+			return nil, err
+		}
+		if c.TypeId, err = strconv.ParseInt(first(row.Get("typeId")), 0, 64); err != nil {
+			return nil, err
+		}
+		if c.Quantity, err = strconv.ParseInt(first(row.Get("quantity")), 0, 64); err != nil {
+			return nil, err
+		}
+		c.RawQuantity, _ = strconv.ParseInt(first(row.Get("rawQuantity")), 0, 64)
+		if temp, ok = row.Get("singleton"); ok != true {
+			return nil, fmt.Errorf("Missing attribute: singleton")
+		}
+		c.Singleton = (temp == "1")
+		if temp, ok = row.Get("included"); ok != true {
+			return nil, fmt.Errorf("Missing attribute: included")
+		}
+		if temp == "1" {
+			c.Action = "offered"
+		} else {
+			c.Action = "requested"
 		}
 		r = append(r, c)
 	}
