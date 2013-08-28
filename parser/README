@@ -1,0 +1,34 @@
+type cAsset struct {
+  Id int64 `rowset:"@itemID"`
+  ItemTypeId int64 `rowset:"@typeID"`
+  LocationId int64 `rowset:"@locationID"`
+  LocationFlag int64 `rowset:"@flag"`
+  Quantity int64 `rowset:"@quantity"`
+  Packaged bool `rowset:"@singleton"`
+  Contents []cAsset `rowset:"#contents"`
+}
+
+type aStatus struct {
+  Paid          time.Time `golink:"<paidUntil"`
+  Created       time.Time `golink:"<createDate"`
+  Logins        int64 `golink:"<logonCount"`
+  MinutesPlayed int64 `golink:"<logonMinutes"`
+}
+
+So, rules:
+
+rowset:"" tags refer to things that are already assumed to be part of a top-level rowset.
+golink:"" tags refer only to things that have a toplevel <result> element, but nothing else.
+
+Prefixes:
+
+@ - attribute value of current element (usually 'row')
+# - rowset (name optionally after the '#') -- recursive.
+< - contents of named tag
+. - character data of the current tag.
+
+These can be combined, so <victim@characterID would be useful.
+
+In the case of '#' and '<', if the value is a struct (slice, pointer, or bare),
+we recurse into that struct def to deal with the tag specified. See cAsset above
+for an example.
